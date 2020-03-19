@@ -1,5 +1,6 @@
 import React from 'react';
 import APIRequest from '../Util/APIRequest';
+import '../App.css';
 import './Members.css';
 import AddMember from './AddMember';
 import MemberTile from './MemberTile';
