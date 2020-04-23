@@ -33,11 +33,11 @@ namespace WebApiBackend.Controllers
         /// <summary>
         /// POST Method - Creates a new chore for the flat
         /// </summary>
-        /// <param name="choreDTO">The payment you want to be created</param>
+        /// <param name="choreDTO">The chore you want to be created</param>
         /// <response code="200">Payment created</response>
         /// <response code="400">Asignee does not exist</response>
         /// <response code="401">Not an authorised user</response>
-        /// <returns> The created payment is returned </returns>        
+        /// <returns> The created chore is returned </returns>        
         [HttpPost("Flat")]
         public async Task<IActionResult> CreateChoreForFlat([FromBody] ChoreDTO choreDTO)
         {
@@ -66,6 +66,74 @@ namespace WebApiBackend.Controllers
             return Ok();
         }
 
+
+        /// <summary>
+        /// GET Method - Gets all chores for a flat
+        /// </summary>
+        /// <response code="200">Chores for flat returned</response>
+        /// <response code="400">Flat does not exist for signed in user</response>
+        /// <response code="401">Not an authorised user</response>
+        /// <returns> The chores for a flat are returned </returns>        
+        [HttpGet("Flat")]
+        public async Task<IActionResult> GetAllChoresForFlat()
+        {
+            // Get flat ID from the user creds
+            ClaimsIdentity identity = HttpContext.User.Identity as ClaimsIdentity;
+
+            int userID = Int16.Parse(identity.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var usr = await _userRepository.Get(userID);
+            int? flatId = usr.FlatId;
+
+            if (flatId == null)
+            {
+                return BadRequest();
+            }
+
+            List<Chore> chores = await GetAllChoresFromFlatId(flatId);
+
+            List<ChoreDTO> dtos = new List<ChoreDTO>();
+
+            foreach (Chore c in chores)
+            {
+                dtos.Add(new ChoreDTO(c));
+            }
+
+            return Ok(dtos);
+        }
+
+        /// <summary>
+        /// DELETE Method - Deletes a chore based on its ID
+        /// </summary>
+        /// <response code="200">Chore has been deleted</response>
+        /// <response code="400">Chore does not exist for signed-in user</response>
+        /// <response code="401">Not an authorised user</response>
+        [HttpDelete("{choreID}")]
+        public async Task<IActionResult> DeleteChore([FromRoute] int choreID)
+        {
+            ClaimsIdentity identity = HttpContext.User.Identity as ClaimsIdentity;
+
+            int userID = Int16.Parse(identity.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var usr = await _userRepository.Get(userID);
+            int? flatId = usr.FlatId;
+
+            var chore = await _choresRepository.Get(choreID);
+
+            if (flatId == null || chore == null)
+            {
+                return BadRequest();
+            }
+
+            // Ensure the chore belongs to the same flat as the user
+            List<Chore> chores = await GetAllChoresFromFlatId(flatId);
+            if (!chores.Contains(chore))
+            {
+                return BadRequest();
+            }
+
+            await _choresRepository.Delete(choreID);
+            return Ok();
+        }
+
         /// <summary>
         /// Helper method to get all chores for a specific flat
         /// </summary>
@@ -83,5 +151,37 @@ namespace WebApiBackend.Controllers
 
             return chores;
         }
+
+        /// <summary>
+        /// PUT Method - sets specific chore to completed
+        /// </summary>
+        /// <response code="200">Chore successfully marked as completed</response>
+        /// <response code="400">Bad request, chore does not exist</response>
+        /// <response code="401">Not an authorised user</response>      
+        [HttpPut("Chores/{choreId}")]
+        public async Task<IActionResult> MarkChoreAsCompleted(int choreId)
+        {
+            //check identity
+            ClaimsIdentity identity = HttpContext.User.Identity as ClaimsIdentity;
+            int userID = Int16.Parse(identity.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var user = await _userRepository.Get(userID);
+            if (user == null)
+            {
+                return new BadRequestResult();
+            }
+
+            Chore chore = await _choresRepository.Get(choreId);
+            //check chore exists
+            if (chore == null)
+            {
+                return BadRequest();
+            }
+
+            chore.Completed = !chore.Completed;
+            await _choresRepository.Update(chore);
+
+            return Ok();
+        }
+
     }
 }
